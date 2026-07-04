@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import videoAsset from "../assets/enter-restaurant.mp4.asset.json";
+import heroFallback from "../assets/cafe-tisch.jpg";
+
+const VIDEO_URL = videoAsset.url;
+
+const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
 
 export function ScrollVideoHero() {
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -10,7 +15,11 @@ export function ScrollVideoHero() {
   const primedRef = useRef(false);
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
 
+  // Scroll-driven progress + video scrubbing. Runs independently of the video
+  // load state so the title reveal and hand-off always work, even if the
+  // video never arrives.
   useEffect(() => {
     const video = videoRef.current;
     const section = sectionRef.current;
@@ -39,11 +48,36 @@ export function ScrollVideoHero() {
     const onScroll = () => {
       const p = computeProgress();
       setProgress(p);
-      targetTimeRef.current = p * (durationRef.current - 0.05);
-      if (rafRef.current === null) {
+      targetTimeRef.current = p * Math.max(durationRef.current - 0.05, 0);
+      if (video.readyState >= 1 && rafRef.current === null) {
         rafRef.current = requestAnimationFrame(animate);
       }
     };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    onScroll();
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  // Video loading. The whole clip is downloaded up front (with retries) and
+  // played from a blob URL: once attached, every frame is buffered locally,
+  // so scroll-scrubbing never stalls on partial buffering. If the download
+  // keeps failing we fall back to streaming, and if that also fails the hero
+  // stays on the photo backdrop.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    let streaming = false;
+    const controller = new AbortController();
 
     const onMeta = () => {
       if (Number.isFinite(video.duration) && video.duration > 0) {
@@ -53,13 +87,13 @@ export function ScrollVideoHero() {
 
     const onReady = () => {
       setReady(true);
-      onScroll();
+      video.currentTime = targetTimeRef.current;
     };
 
     // Mobile browsers (esp. iOS Safari) won't buffer/decode or render seeked
     // frames until the video has been "primed" with a playback attempt.
     const prime = () => {
-      if (primedRef.current) return;
+      if (primedRef.current || !video.src) return;
       primedRef.current = true;
       const playPromise = video.play();
       if (playPromise && typeof playPromise.then === "function") {
@@ -76,62 +110,110 @@ export function ScrollVideoHero() {
       }
     };
 
+    const attach = (src: string, isStream: boolean) => {
+      streaming = isStream;
+      primedRef.current = false;
+      video.src = src;
+      video.load();
+      prime();
+    };
+
+    const onError = () => {
+      if (cancelled) return;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+        attach(VIDEO_URL, true);
+      } else if (streaming) {
+        setFailed(true);
+      }
+    };
+
     video.addEventListener("loadedmetadata", onMeta);
     video.addEventListener("loadeddata", onReady);
     video.addEventListener("canplay", onReady);
+    video.addEventListener("error", onError);
 
-    // Kick off loading + priming.
-    video.load();
-    prime();
+    (async () => {
+      for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+        try {
+          const res = await fetch(VIDEO_URL, { signal: controller.signal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          if (cancelled) return;
+          objectUrl = URL.createObjectURL(blob);
+          attach(objectUrl, false);
+          return;
+        } catch {
+          if (cancelled || controller.signal.aborted) return;
+          await new Promise((r) => setTimeout(r, 800 * 2 ** attempt));
+        }
+      }
+      if (!cancelled) attach(VIDEO_URL, true);
+    })();
 
     const onFirstInteract = () => prime();
     window.addEventListener("touchstart", onFirstInteract, { passive: true });
     window.addEventListener("pointerdown", onFirstInteract, { passive: true });
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-
-    onScroll();
 
     return () => {
+      cancelled = true;
+      controller.abort();
       video.removeEventListener("loadedmetadata", onMeta);
       video.removeEventListener("loadeddata", onReady);
       video.removeEventListener("canplay", onReady);
+      video.removeEventListener("error", onError);
       window.removeEventListener("touchstart", onFirstInteract);
       window.removeEventListener("pointerdown", onFirstInteract);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, []);
 
-  const titleOpacity = Math.min(Math.max((progress - 0.55) / 0.35, 0), 1);
+  const titleOpacity = clamp01((progress - 0.55) / 0.35);
   const cueOpacity = Math.max(1 - progress * 4, 0);
+  // Over the last stretch of the pin the whole stage dissolves into the page
+  // background and the title text morphs to the page foreground color, so the
+  // unpin moment is invisible.
+  const handoff = clamp01((progress - 0.84) / 0.16);
 
   return (
     <div ref={sectionRef} className="relative h-[350vh]">
       <div className="sticky top-0 h-screen w-full overflow-hidden bg-primary">
+        {/* Photo backdrop – the hero is never blank, even without the video */}
+        <img
+          src={heroFallback}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover"
+        />
         <video
           ref={videoRef}
-          src={videoAsset.url}
           muted
           autoPlay
           loop={false}
           playsInline
           preload="auto"
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700"
+          style={{ opacity: ready ? 1 : 0 }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-foreground/30 via-transparent to-foreground/60" />
 
         {/* Loading state */}
-        {!ready && (
+        {!ready && !failed && (
           <div className="absolute inset-0 flex items-center justify-center text-primary-foreground">
             <span className="h-10 w-10 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
           </div>
         )}
 
+        {/* Seamless hand-off into the page background */}
+        <div
+          className="pointer-events-none absolute inset-0 bg-background"
+          style={{ opacity: handoff }}
+        />
+
         {/* Scroll cue */}
         <div
-          className="absolute left-1/2 top-10 flex -translate-x-1/2 flex-col items-center gap-2 text-primary-foreground"
+          className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-primary-foreground"
           style={{ opacity: cueOpacity }}
         >
           <span className="text-sm uppercase tracking-[0.3em]">scrollen</span>
@@ -140,17 +222,18 @@ export function ScrollVideoHero() {
 
         {/* Title reveal */}
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center text-primary-foreground"
+          className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center"
           style={{
             opacity: titleOpacity,
             transform: `translateY(${(1 - titleOpacity) * 30}px)`,
+            color: `color-mix(in oklab, var(--primary-foreground) ${Math.round((1 - handoff) * 100)}%, var(--foreground) ${Math.round(handoff * 100)}%)`,
           }}
         >
-          <p className="mb-4 text-sm uppercase tracking-[0.35em]">Willkommen im</p>
+          <p className="mb-4 font-script text-3xl sm:text-4xl">Willkommen im</p>
           <h1 className="max-w-4xl text-5xl font-semibold leading-tight sm:text-6xl md:text-7xl">
             Teigtaschen Bowls Café
           </h1>
-          <p className="mt-6 max-w-xl text-lg text-primary-foreground/90">
+          <p className="mt-6 max-w-xl text-lg opacity-90">
             Hausgemachte Teigtaschen · Bowls · vegane Optionen
           </p>
         </div>
