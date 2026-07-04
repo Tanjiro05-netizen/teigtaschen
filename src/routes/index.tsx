@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ScrollVideoHero } from "../components/ScrollVideoHero";
 import { SiteHeader } from "../components/SiteHeader";
 import { AlpineDivider } from "../components/AlpineDivider";
+import { Logo } from "../components/Logo";
 import { Reveal } from "../components/Reveal";
 import bowlKartoffel from "../assets/bowl-kartoffel.jpg";
 import bowlRindfleisch from "../assets/bowl-rindfleisch.jpg";
@@ -299,9 +300,9 @@ function MenuRow({ item }: { item: MenuItem }) {
 }
 
 const openingHours = [
-  { day: "Montag – Freitag", time: "11:00 – 21:00" },
-  { day: "Samstag", time: "12:00 – 21:00" },
-  { day: "Sonntag", time: "12:00 – 20:00" },
+  { day: "Montag – Freitag", time: "11:30 – 14:30" },
+  { day: "Samstag", time: "Geschlossen" },
+  { day: "Sonntag", time: "Geschlossen" },
 ];
 
 // --- Structured data (schema.org JSON-LD) --------------------------------
@@ -362,20 +363,8 @@ const structuredData = {
     {
       "@type": "OpeningHoursSpecification",
       dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      opens: "11:00",
-      closes: "21:00",
-    },
-    {
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: "Saturday",
-      opens: "12:00",
-      closes: "21:00",
-    },
-    {
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: "Sunday",
-      opens: "12:00",
-      closes: "20:00",
+      opens: "11:30",
+      closes: "14:30",
     },
   ],
   sameAs: [INSTAGRAM_URL],
@@ -456,7 +445,8 @@ function Index() {
         <Reveal>
           <div className="rounded-3xl border border-border/70 bg-card px-6 py-12 shadow-lg shadow-foreground/5 sm:px-14">
             <div className="text-center">
-              <p className="font-script text-3xl font-medium text-primary sm:text-4xl">
+              <Logo className="mx-auto h-24 w-auto text-foreground/80 sm:h-28" />
+              <p className="mt-6 font-script text-3xl font-medium text-primary sm:text-4xl">
                 Über uns
               </p>
               <h2 className="mt-3 font-fraktur text-5xl font-medium leading-tight sm:text-6xl">
@@ -758,8 +748,8 @@ function Index() {
       <footer className="bg-foreground py-12 text-background">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-fraktur text-2xl font-medium">Teigtaschen Bowls Café</p>
-            <p className="mt-1 text-sm text-background/70">
+            <Logo className="h-20 w-auto" />
+            <p className="mt-3 text-sm text-background/70">
               Winterstraße 15 · 81543 München · Hausgemacht + vegane Optionen
             </p>
           </div>

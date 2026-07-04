@@ -9,6 +9,7 @@
         "@fontsource/figtree": "^5.2.10",
         "@fontsource/fraunces": "^5.2.9",
         "@fontsource/grenze-gotisch": "^5.2.8",
+        "@fontsource/permanent-marker": "^5.2.7",
         "@hookform/resolvers": "^5.2.2",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -219,6 +220,8 @@
     "@fontsource/fraunces": ["@fontsource/fraunces@5.2.9", "", {}, "sha512-XDzuddBtoC7BZgZdBn6b7hsFZY2+V1hgN7yca5fBTKuHjb/lOd45a0Ji8dTUgFhPoL7RdGupo+bC2BFSt6UH8Q=="],
 
     "@fontsource/grenze-gotisch": ["@fontsource/grenze-gotisch@5.2.8", "", {}, "sha512-tfcZ3OBCAQ+c70Sw76wftJQYNrD380l3lhwNAexfvTGE0MA//Asg5fBn3KakIO5gaSOs3wpYiZYmgH5oU3eZjg=="],
+
+    "@fontsource/permanent-marker": ["@fontsource/permanent-marker@5.2.7", "", {}, "sha512-Lpjv3yD6TSRvcxjhdv4OZuNtEttbUgVNfFqAE8Qf7D1J8L97qZTZ8rj8OExX2ezCNv920psv+HBHvthAQxNE+A=="],
 
     "@hookform/resolvers": ["@hookform/resolvers@5.2.2", "", { "dependencies": { "@standard-schema/utils": "^0.3.0" }, "peerDependencies": { "react-hook-form": "^7.55.0" } }, "sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA=="],
 
