@@ -33,7 +33,7 @@ export function SiteHeader() {
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
         <a href="#top" className="shrink-0" onClick={() => setOpen(false)}>
-          <Logo className="h-12 w-auto sm:h-14" />
+          <Logo variant={solid ? "ink" : "cream"} className="h-12 w-auto sm:h-14" />
           <span className="sr-only">Café Teigtaschen Bowls – nach oben</span>
         </a>
 

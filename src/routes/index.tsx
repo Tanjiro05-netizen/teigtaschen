@@ -445,7 +445,7 @@ function Index() {
         <Reveal>
           <div className="rounded-3xl border border-border/70 bg-card px-6 py-12 shadow-lg shadow-foreground/5 sm:px-14">
             <div className="text-center">
-              <Logo className="mx-auto h-24 w-auto text-foreground/80 sm:h-28" />
+              <Logo variant="ink" className="mx-auto h-24 w-auto sm:h-28" />
               <p className="mt-6 font-script text-3xl font-medium text-primary sm:text-4xl">
                 Über uns
               </p>
@@ -748,7 +748,7 @@ function Index() {
       <footer className="bg-foreground py-12 text-background">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <Logo className="h-20 w-auto" />
+            <Logo variant="cream" className="h-20 w-auto" />
             <p className="mt-3 text-sm text-background/70">
               Winterstraße 15 · 81543 München · Hausgemacht + vegane Optionen
             </p>
