@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import videoAsset from "../assets/enter-restaurant.mp4.asset.json";
 import heroFallback from "../assets/cafe-tisch.jpg";
 
-const VIDEO_URL = videoAsset.url;
+// The clip is bundled with the site (public/) so it always loads; the
+// Lovable-hosted copy is kept as a network fallback.
+const VIDEO_SOURCES = ["/enter-restaurant.mp4", videoAsset.url];
 
 const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
 
@@ -76,7 +78,7 @@ export function ScrollVideoHero() {
 
     let cancelled = false;
     let objectUrl: string | null = null;
-    let streaming = false;
+    let streamIdx = -1;
     const controller = new AbortController();
 
     const onMeta = () => {
@@ -110,12 +112,21 @@ export function ScrollVideoHero() {
       }
     };
 
-    const attach = (src: string, isStream: boolean) => {
-      streaming = isStream;
+    const attach = (src: string) => {
       primedRef.current = false;
       video.src = src;
       video.load();
       prime();
+    };
+
+    // Let the browser stream the next candidate source directly.
+    const streamNext = () => {
+      streamIdx++;
+      if (streamIdx < VIDEO_SOURCES.length) {
+        attach(VIDEO_SOURCES[streamIdx]);
+      } else {
+        setFailed(true);
+      }
     };
 
     const onError = () => {
@@ -123,10 +134,8 @@ export function ScrollVideoHero() {
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
         objectUrl = null;
-        attach(VIDEO_URL, true);
-      } else if (streaming) {
-        setFailed(true);
       }
+      streamNext();
     };
 
     video.addEventListener("loadedmetadata", onMeta);
@@ -136,20 +145,22 @@ export function ScrollVideoHero() {
 
     (async () => {
       for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+        const url = VIDEO_SOURCES[attempt % VIDEO_SOURCES.length];
         try {
-          const res = await fetch(VIDEO_URL, { signal: controller.signal });
+          const res = await fetch(url, { signal: controller.signal });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const blob = await res.blob();
+          if (!blob.type.startsWith("video/")) throw new Error(blob.type);
           if (cancelled) return;
           objectUrl = URL.createObjectURL(blob);
-          attach(objectUrl, false);
+          attach(objectUrl);
           return;
         } catch {
           if (cancelled || controller.signal.aborted) return;
-          await new Promise((r) => setTimeout(r, 800 * 2 ** attempt));
+          await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
         }
       }
-      if (!cancelled) attach(VIDEO_URL, true);
+      if (!cancelled) streamNext();
     })();
 
     const onFirstInteract = () => prime();

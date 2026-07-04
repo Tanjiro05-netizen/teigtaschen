@@ -13,6 +13,14 @@ import cafeTisch from "../assets/cafe-tisch.jpg";
 import takeawayBags from "../assets/takeaway-bags.jpg";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify(structuredData),
+      },
+    ],
+  }),
   component: Index,
 });
 
@@ -295,6 +303,132 @@ const openingHours = [
   { day: "Samstag", time: "12:00 – 21:00" },
   { day: "Sonntag", time: "12:00 – 20:00" },
 ];
+
+// --- Structured data (schema.org JSON-LD) --------------------------------
+// Built from the same objects that render the page, so menu changes only
+// need to happen in one place.
+
+const dietUrl: Record<Tag, string> = {
+  vegan: "https://schema.org/VeganDiet",
+  vegetarisch: "https://schema.org/VegetarianDiet",
+  glutenfrei: "https://schema.org/GlutenFreeDiet",
+  laktosefrei: "https://schema.org/LowLactoseDiet",
+};
+
+// "12 €" -> "12.00", "2,50" -> "2.50"
+const toSchemaPrice = (p: string) => {
+  const n = p.replace("€", "").trim().replace(",", ".");
+  return Number(n).toFixed(2);
+};
+
+function schemaMenuItem(item: {
+  name: string;
+  price: string;
+  desc?: string;
+  tags?: Tag[];
+}) {
+  return {
+    "@type": "MenuItem",
+    name: item.name,
+    ...(item.desc ? { description: item.desc } : {}),
+    ...(item.tags && item.tags.length > 0
+      ? { suitableForDiet: item.tags.map((t) => dietUrl[t]) }
+      : {}),
+    offers: {
+      "@type": "Offer",
+      price: toSchemaPrice(item.price),
+      priceCurrency: "EUR",
+    },
+  };
+}
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "Restaurant",
+  name: "Teigtaschen Bowls Café",
+  description:
+    "Hausgemachte Teigtaschen in frischen Bowls – alpine Küche modern interpretiert, mit veganen, vegetarischen und glutenfreien Optionen.",
+  servesCuisine: ["Alpine Küche", "Teigtaschen", "Bowls"],
+  priceRange: "€€",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Winterstraße 15",
+    postalCode: "81543",
+    addressLocality: "München",
+    addressRegion: "Bayern",
+    addressCountry: "DE",
+  },
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      opens: "11:00",
+      closes: "21:00",
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: "Saturday",
+      opens: "12:00",
+      closes: "21:00",
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: "Sunday",
+      opens: "12:00",
+      closes: "20:00",
+    },
+  ],
+  sameAs: [INSTAGRAM_URL],
+  potentialAction: {
+    "@type": "OrderAction",
+    target: WOLT_URL,
+  },
+  hasMenu: {
+    "@type": "Menu",
+    name: "Speisekarte",
+    inLanguage: "de",
+    hasMenuSection: [
+      {
+        "@type": "MenuSection",
+        name: "Teigtaschen Bowls",
+        hasMenuItem: bowls.map((b) =>
+          schemaMenuItem({
+            name:
+              b.name === "Glutenfrei + Laktosefrei Bowl"
+                ? b.name
+                : `Teigtaschen Bowl mit ${b.name}`,
+            price: b.price,
+            desc: b.desc,
+            tags: b.tags,
+          }),
+        ),
+      },
+      {
+        "@type": "MenuSection",
+        name: "Unsere Empfehlung",
+        hasMenuItem: empfehlungen.map((e) =>
+          schemaMenuItem({
+            name: e.name,
+            price: e.price,
+            desc: `${e.combo}. ${e.desc}`,
+          }),
+        ),
+      },
+      ...menuCategories.map((cat) => ({
+        "@type": "MenuSection",
+        name: cat.title,
+        hasMenuItem: cat.items.map((item) =>
+          schemaMenuItem({
+            name: item.name,
+            price: item.price,
+            desc: item.desc,
+            tags: item.tag ? [item.tag] : undefined,
+          }),
+        ),
+      })),
+    ],
+  },
+};
 
 function Index() {
   return (
