@@ -104,7 +104,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Hausgemachte Teigtaschen in frischen Bowls – vegan, vegetarisch & glutenfrei. In der Winterstraße 15, München.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "/og.jpg" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:locale", content: "de_DE" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: "/og.jpg" },
     ],
     links: [
       {
@@ -112,6 +117,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
