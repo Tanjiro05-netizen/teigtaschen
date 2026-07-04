@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import localVideo from "../assets/enter-restaurant.mp4";
 import videoAsset from "../assets/enter-restaurant.mp4.asset.json";
-import heroFallback from "../assets/cafe-tisch.jpg";
 
-// The clip is bundled with the site (public/) so it always loads; the
-// Lovable-hosted copy is kept as a network fallback.
-const VIDEO_SOURCES = ["/enter-restaurant.mp4", videoAsset.url];
+// The clip ships with the site through Vite's asset pipeline, so its URL is
+// always correct no matter where or under which base path the site is
+// deployed. The Lovable-hosted copy remains as a network fallback.
+const VIDEO_SOURCES = [localVideo, videoAsset.url];
+
+// How often a successfully-loaded video may fail (decode/playback error) and
+// be re-fetched before we stop showing the loading spinner. The title reveal
+// and scroll hand-off never depend on the video.
+const MAX_PLAYBACK_FAILURES = 3;
 
 const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
 
@@ -17,11 +23,11 @@ export function ScrollVideoHero() {
   const primedRef = useRef(false);
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
 
   // Scroll-driven progress + video scrubbing. Runs independently of the video
-  // load state so the title reveal and hand-off always work, even if the
-  // video never arrives.
+  // load state so the title reveal and the hand-off into the page always
+  // work, even while the video is still loading.
   useEffect(() => {
     const video = videoRef.current;
     const section = sectionRef.current;
@@ -67,18 +73,19 @@ export function ScrollVideoHero() {
     };
   }, []);
 
-  // Video loading. The whole clip is downloaded up front (with retries) and
-  // played from a blob URL: once attached, every frame is buffered locally,
-  // so scroll-scrubbing never stalls on partial buffering. If the download
-  // keeps failing we fall back to streaming, and if that also fails the hero
-  // stays on the photo backdrop.
+  // Video loading. The whole clip is downloaded (rotating through sources,
+  // retrying with capped backoff for as long as it takes) and played from a
+  // blob URL: once attached, every frame is buffered locally, so scrubbing
+  // never stalls on partial buffering. Playback errors re-enter the loop.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     let cancelled = false;
     let objectUrl: string | null = null;
-    let streamIdx = -1;
+    let fetchAttempt = 0;
+    let playbackFailures = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
 
     const onMeta = () => {
@@ -119,33 +126,15 @@ export function ScrollVideoHero() {
       prime();
     };
 
-    // Let the browser stream the next candidate source directly.
-    const streamNext = () => {
-      streamIdx++;
-      if (streamIdx < VIDEO_SOURCES.length) {
-        attach(VIDEO_SOURCES[streamIdx]);
-      } else {
-        setFailed(true);
-      }
-    };
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        retryTimer = setTimeout(resolve, ms);
+      });
 
-    const onError = () => {
-      if (cancelled) return;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-        objectUrl = null;
-      }
-      streamNext();
-    };
-
-    video.addEventListener("loadedmetadata", onMeta);
-    video.addEventListener("loadeddata", onReady);
-    video.addEventListener("canplay", onReady);
-    video.addEventListener("error", onError);
-
-    (async () => {
-      for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
-        const url = VIDEO_SOURCES[attempt % VIDEO_SOURCES.length];
+    const load = async () => {
+      while (!cancelled) {
+        const url = VIDEO_SOURCES[fetchAttempt % VIDEO_SOURCES.length];
+        fetchAttempt++;
         try {
           const res = await fetch(url, { signal: controller.signal });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -157,11 +146,37 @@ export function ScrollVideoHero() {
           return;
         } catch {
           if (cancelled || controller.signal.aborted) return;
-          await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+          await sleep(Math.min(500 * 2 ** Math.min(fetchAttempt, 4), 8000));
         }
       }
-      if (!cancelled) streamNext();
-    })();
+    };
+
+    // Decode/playback error on an attached source: drop it and re-fetch.
+    const onError = () => {
+      if (cancelled) return;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      setReady(false);
+      playbackFailures++;
+      if (playbackFailures >= MAX_PLAYBACK_FAILURES) {
+        // Browser genuinely cannot play the clip; stop the spinner and let
+        // the scroll animation carry the hero on its own.
+        setGaveUp(true);
+        return;
+      }
+      // Restart from the primary (local) source with fresh backoff.
+      fetchAttempt = 0;
+      retryTimer = setTimeout(() => void load(), 1200);
+    };
+
+    video.addEventListener("loadedmetadata", onMeta);
+    video.addEventListener("loadeddata", onReady);
+    video.addEventListener("canplay", onReady);
+    video.addEventListener("error", onError);
+
+    void load();
 
     const onFirstInteract = () => prime();
     window.addEventListener("touchstart", onFirstInteract, { passive: true });
@@ -170,6 +185,7 @@ export function ScrollVideoHero() {
     return () => {
       cancelled = true;
       controller.abort();
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
       video.removeEventListener("loadedmetadata", onMeta);
       video.removeEventListener("loadeddata", onReady);
       video.removeEventListener("canplay", onReady);
@@ -190,13 +206,6 @@ export function ScrollVideoHero() {
   return (
     <div ref={sectionRef} className="relative h-[350vh]">
       <div className="sticky top-0 h-screen w-full overflow-hidden bg-primary">
-        {/* Photo backdrop – the hero is never blank, even without the video */}
-        <img
-          src={heroFallback}
-          alt=""
-          aria-hidden
-          className="absolute inset-0 h-full w-full object-cover"
-        />
         <video
           ref={videoRef}
           muted
@@ -210,7 +219,7 @@ export function ScrollVideoHero() {
         <div className="absolute inset-0 bg-gradient-to-b from-foreground/30 via-transparent to-foreground/60" />
 
         {/* Loading state */}
-        {!ready && !failed && (
+        {!ready && !gaveUp && (
           <div className="absolute inset-0 flex items-center justify-center text-primary-foreground">
             <span className="h-10 w-10 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
           </div>
